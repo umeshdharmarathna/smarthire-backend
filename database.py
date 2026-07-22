@@ -6,8 +6,12 @@ from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
-# Supabase PostgreSQL (Cloud) -> Local MySQL (XAMPP) -> SQLite fallback
-DATABASE_URL = os.getenv("POSTGRES_URL_NON_POOLING") or os.getenv("DATABASE_URL") or "sqlite:///./database.db"
+# Supabase PostgreSQL (Cloud) -> Local MySQL (XAMPP) -> SQLite fallback (/tmp for Vercel)
+DATABASE_URL = os.getenv("POSTGRES_URL_NON_POOLING") or os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    import tempfile
+    sqlite_path = os.path.join(tempfile.gettempdir(), "smarthire.db")
+    DATABASE_URL = f"sqlite:///{sqlite_path}"
 
 # SQLAlchemy needs "postgresql://" not "postgres://"
 if DATABASE_URL.startswith("postgres://"):
