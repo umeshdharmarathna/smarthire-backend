@@ -1,22 +1,19 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import jwt
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Any, Dict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import bcrypt
+import jwt
 from sqlalchemy.orm import Session
+from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+load_dotenv()
 
 import models  # pyrefly: ignore [missing-import] # type: ignore
 from database import get_db  # pyrefly: ignore [missing-import] # type: ignore
-
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "SMART_HIRE_SECRET_KEY_FOR_LOCAL_DEV_AESTHETICS")
 ALGORITHM = "HS256"
@@ -35,12 +32,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     hashed_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(plain_bytes, hashed_bytes)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -48,7 +45,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
-) -> models.User:
+) -> Any:
     token = credentials.credentials
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,7 +54,7 @@ def get_current_user(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except jwt.PyJWTError:
@@ -68,8 +65,8 @@ def get_current_user(
         raise credentials_exception
     return user
 
-def require_role(roles: list[str]):
-    def role_dependency(current_user: models.User = Depends(get_current_user)):
+def require_role(roles: List[str]):
+    def role_dependency(current_user: Any = Depends(get_current_user)):
         if current_user.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
